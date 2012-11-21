@@ -1,0 +1,7 @@
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\obj\x86\Debug\ResolveAssemblyReference.cache
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\bin\Debug\Yandex.Mathematics.exe
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\bin\Debug\Yandex.Mathematics.pdb
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\obj\x86\Debug\Yandex.Mathematics.exe
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\obj\x86\Debug\Yandex.Mathematics.pdb
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\bin\Debug\AForge.dll
+C:\Share\dataset\Yandex.Mathematics\Yandex.Mathematics\bin\Debug\AForge.Neuro.dll
