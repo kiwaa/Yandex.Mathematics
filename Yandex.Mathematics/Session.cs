@@ -18,7 +18,7 @@ namespace Yandex.Mathematics
 
         #region Creation
 
-        public static Session Create(string[] tokens)
+        public static Session Create(User user, string[] tokens)
         {
             if (!tokens[2].Equals("M"))
                 throw new ArgumentException("unexpected type");
@@ -26,7 +26,7 @@ namespace Yandex.Mathematics
 
             session.SessionID = UInt64.Parse(tokens[0]);
             session.Day = Byte.Parse(tokens[1]);
-            session.UserID = UInt64.Parse(tokens[3]);
+            session.User = user;
             switch (tokens[4])
             {
                 case "B":
@@ -55,7 +55,7 @@ namespace Yandex.Mathematics
 
         public UInt64 SessionID { get; private set; }
         public Byte Day { get; private set; }
-        public UInt64 UserID { get; private set; }
+        public User User { get; private set; }
         public SwitchType Switch { get; private set; }
         public List<IUserAction> Actions { get; private set; }
 
@@ -79,7 +79,7 @@ namespace Yandex.Mathematics
                 ////if don't have switch, take last action time
                 //if (Actions.Count > 0)
                 //    return Actions[Actions.Count - 1].Time;
-                return long.MaxValue;
+                return 0;
             }
         }
 
@@ -90,7 +90,33 @@ namespace Yandex.Mathematics
                 var firstClick = Actions.Find(p => p.GetType() == typeof(Click));
                 if (firstClick != null)
                     return firstClick.Time;
-                return long.MaxValue;
+                return 0;
+            }
+        }
+
+        public long FirstClickPageDuration
+        {
+            get
+            {
+                var firstClickIndex = Actions.FindIndex(p => p.GetType() == typeof(Click));
+                if (firstClickIndex > 0 && Actions.Count > firstClickIndex + 1)
+                    return Actions[firstClickIndex+1].Time - Actions[firstClickIndex].Time;
+                return 0;
+            }
+        }
+
+        public long FirstClickResultIndex
+        {
+            get
+            {
+                var firstClick = (Actions.Find(p => p.GetType() == typeof(Click)) as Click);
+                if (firstClick != null)
+                {
+                    var url = firstClick.URLID;                    
+                    var query = (Actions.Find(p => p.GetType() == typeof(Query) && (p as Query).SERPID == firstClick.SERPID) as Query);
+                    return query.URLs.IndexOf(url);
+                }
+                return 0;
             }
         }
         
@@ -111,7 +137,6 @@ namespace Yandex.Mathematics
                 return actions.Count(p => p.GetType() == typeof(Click));
             }
         }
-
 
         public int TotalQueries
         {
@@ -135,29 +160,55 @@ namespace Yandex.Mathematics
             {
                 if (Actions.Count > 0)
                     return Actions[Actions.Count - 1].Time;
-                return long.MaxValue;
+                return 0;
             }
         }
 
-        public long MaxTimeBetweenClicks
+        public double AvgTimeBetweenClicksInSERP
         {
             get
             {
-                var times = GetTimeBetweenClicks();
-                if (times.Count() > 0)
-                    return times.Min();
-                return long.MaxValue;
+                return Actions.FindAll(p => p.GetType() == typeof(Query)).Select(p => p as Query).Average(p => p.AvgTimeBetweenClicks);
             }
         }
 
-        public long MinTimeBetweenClicks
+        public double AvgMaxTimeBetweenClicksInSERP
         {
             get
             {
-                var times = GetTimeBetweenClicks();
-                if (times.Count() > 0)
-                    return times.Min();
-                return long.MaxValue;
+                return Actions.FindAll(p => p.GetType() == typeof(Query)).Select(p => p as Query).Average(p => p.MaxTimeBetweenClicks);
+            }
+        }
+
+        public double AvgMinTimeBetweenClicksInSERP
+        {
+            get
+            {
+                return Actions.FindAll(p => p.GetType() == typeof(Query)).Select(p => p as Query).Average(p => p.MinTimeBetweenClicks);
+            }
+        }
+
+        public double AvgClicksPerQuery
+        {
+            get
+            {
+                return Actions.FindAll(p => p.GetType() == typeof(Query)).Select(p => p as Query).Average(p => p.Clicks.Count);
+            }
+        }
+
+        public double AvgFirstClickTimePerQuery
+        {
+            get
+            {
+                return Actions.FindAll(p => p.GetType() == typeof(Query)).Select(p => p as Query).Average(p => p.FirstClickTime);
+            }
+        }
+
+        public double AvgFirstClickResultIndexPerQuery
+        {
+            get
+            {
+                return Actions.FindAll(p => p.GetType() == typeof(Query)).Select(p => p as Query).Average(p => p.FirstClickResultIndex);
             }
         }
 
@@ -168,7 +219,7 @@ namespace Yandex.Mathematics
                 var times = GetTimeBetweenQueries();
                 if (times.Count() > 0)
                     return times.Max();
-                return long.MaxValue;
+                return 0;
             }
         }
 
@@ -179,7 +230,7 @@ namespace Yandex.Mathematics
                 var times = GetTimeBetweenQueries();
                 if (times.Count() > 0)
                     return times.Min();
-                return long.MaxValue;
+                return 0;
             }
         }
 
@@ -198,6 +249,11 @@ namespace Yandex.Mathematics
         public void AddClick(Click click)
         {
             Actions.Add(click);
+
+            var query = Actions.Find(p => p.GetType() == typeof(Query) && (p as Query).SERPID == click.SERPID);
+            Query q = query as Query;
+            if (q != null)
+                q.Clicks.Add(click);            
         }
 
         #endregion //Public Methods
