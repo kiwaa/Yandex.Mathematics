@@ -13,16 +13,26 @@ namespace Yandex.Mathematics
         private const int inputSize = 18;
         private const int classesCount = 2;
 
+        double[] mean;
+        double[] dev;
+
         public void Train(List<Session> train, List<Session> cv, out List<double> trainErrors, out List<double> cvErrors)
+        {
+            Train(train, cv, out trainErrors, out cvErrors, new SigmoidFunction(1.5));
+        }
+
+        public void Train(List<Session> train, List<Session> cv, out List<double> trainErrors, out List<double> cvErrors, IActivationFunction function)
         {
             trainErrors = new List<double>();
             cvErrors = new List<double>();
 
             var count = train.Count;
-            
+
             // prepare learning data
+            Console.WriteLine("prepare learning data");
             double[][] input = new double[count][];
-            double[][] output = new double[count][];            
+            double[][] output = new double[count][];
+
             // preparing the data
             for (int i = 0; i < count; i++)
             {
@@ -30,6 +40,24 @@ namespace Yandex.Mathematics
                 output[i] = CreateOutput(train[i]);
             }
 
+            Console.WriteLine("feature scaling");
+            mean = new double[inputSize];
+            dev = new double[inputSize];
+
+            for (int i = 0; i < inputSize; i++)
+            {
+                var query = input.Select(p => p[i]);
+                mean[i] = query.Average();
+                dev[i] = query.Deviation(mean[i]);
+            }
+
+            for (int i = 0; i < count; i++)
+                for (int j = 0; j < inputSize; j++)
+                {
+                    input[i][j] = (input[i][j] - mean[j]) / dev[j];
+                }
+
+            Console.WriteLine("prepare cv data");
             // prepare cv data
             double[][] cvIn = new double[cv.Count][];
             double[][] cvOut = new double[cv.Count][];
@@ -40,33 +68,46 @@ namespace Yandex.Mathematics
                 cvOut[i] = CreateOutput(cv[i]);
             }
 
+            Console.WriteLine("cv feature scaling");
+            for (int i = 0; i < cv.Count; i++)
+                cvIn[i] = ScaleInput(cvIn[i]);
+
+            Console.WriteLine("create network");
+
             // create perceptron
-            _network = new ActivationNetwork(new SigmoidFunction(), inputSize, classesCount);
+            _network = new ActivationNetwork(function, inputSize, inputSize, classesCount);
+            _network.Randomize();
             // create teacher
-            PerceptronLearning teacher = new PerceptronLearning(_network);
+            //PerceptronLearning teacher = new PerceptronLearning(_network);
+            BackPropagationLearning teacher = new BackPropagationLearning(_network);
+
             // set learning rate
             teacher.LearningRate = 0.01;
+
             // loop
             int iter = 0;
             double error = 999;
             double delta = 999;
             Console.WriteLine("Train Network");
             //while (iter < 1000)
-            while (delta > 0.000001 && iter < 10000)
-            {                
+            while (delta > 1 && iter < 5000)
+            //while (iter < 2000)
+            {
                 // run epoch of learning procedure
                 double trainError = teacher.RunEpoch(input, output);
 
                 double trainError2 = ComputeCVError(_network, input, output);
                 double cvError = ComputeCVError(_network, cvIn, cvOut);
 
-                delta = Math.Abs(error - cvError);
-                error = cvError;
+                delta = Math.Abs(error - trainError);
+                error = trainError;
                 trainErrors.Add(trainError2);
                 cvErrors.Add(cvError);
                 iter++;
-                Console.WriteLine(iter);
+                if (iter % 100 == 0)
+                    Console.WriteLine(iter);
             }
+            Console.WriteLine(iter);
         }
 
         private double ComputeCVError(ActivationNetwork network, double[][] dataIn, double[][] dataOut)
@@ -83,13 +124,14 @@ namespace Yandex.Mathematics
 
         private double[] Run(Session session)
         {
-            double[] input = CreateInput(session);            
+            double[] input = CreateInput(session);
+            input = ScaleInput(input);
             return _network.Compute(input);
         }
 
         public bool DetectSwitch(Session session)
         {
-            double[] output = Run(session);
+            double[] output = Run(session);            
             if (output[0] > output[1])
                 return false;
             return true;
@@ -115,7 +157,17 @@ namespace Yandex.Mathematics
             input[14] = session.AvgTimeBetweenClicksInSERP;
             input[15] = session.AvgClicksPerQuery;
             input[16] = session.AvgFirstClickResultIndexPerQuery;
-            input[17] = session.AvgFirstClickTimePerQuery;            
+            input[17] = session.AvgFirstClickTimePerQuery;
+            
+            return input;
+        }
+
+        private double[] ScaleInput(double[] input)
+        {
+            for (int j = 0; j < inputSize; j++)
+            {
+                input[j] = (input[j] - mean[j]) / dev[j];
+            }
             return input;
         }
 

@@ -7,12 +7,13 @@ using System.IO;
 using System.Diagnostics;
 using DebugVisualization;
 using System.Threading;
+using AForge.Neuro;
 
 namespace Yandex.Mathematics
 {
     internal sealed class Program
     {
-        private const int MAX_LINES = 10000000;        
+        private const int MAX_LINES = 200000;
 
         static void Main(string[] args)
         {
@@ -79,6 +80,8 @@ namespace Yandex.Mathematics
                             Debug.Fail("unexpected");
                     }
                     linesReaded++;
+                    if (linesReaded % 1000 == 0)
+                        Console.WriteLine(linesReaded);
                 }
             }
 
@@ -87,6 +90,9 @@ namespace Yandex.Mathematics
             List<double> cvErrors;
             //Train(sess, out trainErrors, out cvErrors);
 
+            //Visualize(trainErrors, cvErrors);
+
+            //TrainLambda(sess, out trainErrors, out cvErrors);
             //Visualize(trainErrors, cvErrors);
 
             var trainSize = (int)(0.7 * sess.Count);
@@ -100,14 +106,45 @@ namespace Yandex.Mathematics
             List<double> tErr, cvErr;
             nn.Train(train, cv, out tErr, out cvErr);
 
-            Visualize(tErr, cvErr);
+            //Visualize(tErr, cvErr);
 
+            Console.WriteLine();
+            Console.WriteLine("Train data metrics");
+            //EstimateMetrics(train, nn);
+            Console.WriteLine();
+            Console.WriteLine("CV data metrics");
+            EstimateMetrics(cv, nn);
+
+            Console.ReadKey();
+        }
+
+        private static void TrainLambda(List<Session> sess, out List<double> trainErrors, out List<double> cvErrors)
+        {
+            trainErrors = new List<double>();
+            cvErrors = new List<double>();
+            for (double alpha = 0.1; alpha < 2; alpha += 0.1)
+            {
+                var trainSize = (int)(0.7 * sess.Count);
+                var cvSize = sess.Count - trainSize;
+                var train = sess.GetRange(0, trainSize);
+                var cv = sess.GetRange(trainSize, cvSize);
+                
+                NeuroNet nn = new NeuroNet();
+                List<double> tErr, cvErr;
+                nn.Train(train, cv, out tErr, out cvErr, new SigmoidFunction(alpha));
+                trainErrors.Add(tErr.Last());
+                cvErrors.Add(cvErr.Last());
+                Console.WriteLine("Trained alpha: {0}", alpha);
+            }
+        }
+
+        private static void EstimateMetrics(List<Session> data, NeuroNet nn)
+        {
             int truePositive = 0;
             int trueNegative = 0;
             int falsePositive = 0;
             int falseNegative = 0;
-
-            foreach (Session s in cv)
+            foreach (Session s in data)
             {
                 bool detected = nn.DetectSwitch(s);
                 if (s.Switch == Session.SwitchType.No)
@@ -128,8 +165,12 @@ namespace Yandex.Mathematics
             double precision = ((double)truePositive) / (truePositive + falsePositive);
             double recall = ((double)truePositive) / (truePositive + falseNegative);
             double f1 = 2 * precision * recall / (precision + recall);
-            double missclassificationError = ((double)(falseNegative + falsePositive)) / cv.Count;
-            Console.ReadKey();
+            double missclassificationError = ((double)(falseNegative + falsePositive)) / data.Count;
+
+            Console.WriteLine("Precision: {0}", precision);
+            Console.WriteLine("Recall: {0}", recall);
+            Console.WriteLine("F1: {0}", f1);
+            Console.WriteLine("Missclassification: {0}", missclassificationError);
         }
 
         private static void Train(List<Session> sess, out List<double> trainErrors, out List<double> cvErrors)
