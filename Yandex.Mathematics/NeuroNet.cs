@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using AForge.Neuro;
 using AForge.Neuro.Learning;
+using System.IO;
 
 namespace Yandex.Mathematics
 {
@@ -108,6 +109,137 @@ namespace Yandex.Mathematics
                     Console.WriteLine(iter);
             }
             Console.WriteLine(iter);
+        }
+
+        public void Train(string path, out List<double> trainErrors, out List<double> cvErrors)
+        {
+            trainErrors = new List<double>();
+            cvErrors = new List<double>();
+            
+            Console.WriteLine("feature scaling");
+            mean = new double[18];
+            dev = new double[18];
+
+            int lines = 0;
+            var sum = new double[18];
+            using (var sr = new StreamReader(path))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var tokens = line.Split(' ');
+                    double[] input = ParseInput(tokens);
+                    for (int i = 0; i < 18; i++)
+                        sum[i] += input[i];
+                    lines++;
+
+                    if (lines % 1000 == 0)
+                        Console.WriteLine("mean: " + lines);
+                }
+            }
+            
+            for (int i = 0; i < inputSize; i++)
+            {
+                mean[i] = sum[i] / lines;
+                sum[i] = 0;
+            }
+
+            using (var sr = new StreamReader(path))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var tokens = line.Split(' ');
+                    double[] input = ParseInput(tokens);
+                    for (int i = 0; i < 18; i++)
+                        sum[i] += (input[i] - mean[i]) * (input[i] - mean[i]);
+                    lines++;
+
+                    if (lines % 1000 == 0)
+                        Console.WriteLine("dev: " + lines);
+                }
+            }
+
+            for (int i = 0; i < inputSize; i++)
+            {
+                dev[i] = sum[i] / lines;
+                sum[i] = 0;
+            }
+
+            Console.WriteLine("create network");
+
+            // create perceptron
+            _network = new ActivationNetwork(new SigmoidFunction(1.5), 18, 18, 2);
+            _network.Randomize();
+            // create teacher
+            //PerceptronLearning teacher = new PerceptronLearning(_network);
+            BackPropagationLearning teacher = new BackPropagationLearning(_network);
+
+            // set learning rate
+            teacher.LearningRate = 0.01;
+
+            // loop
+            int iter = 0;
+            double error = 999;
+            double delta = 999;
+            Console.WriteLine("Train Network");
+            //while (iter < 1000)
+            while (delta > 1 && iter < 5000)
+            //while (iter < 2000)
+            {
+                double trainError = 0;
+                using (var sr = new StreamReader(path))
+                {
+                    long linesCounter = 0;
+                    string line;                    
+                    while ((line = sr.ReadLine()) != null)
+                    {
+                        var tokens = line.Split(' ');
+                        double[] input = ParseInput(tokens);
+                        for (int j = 0; j < 18; j++)
+                        {
+                            input[j] = (input[j] - mean[j]) / dev[j];
+                        }
+                        double[] output = ParseOutput(tokens);
+                        trainError += teacher.Run(input, output);
+
+                        linesCounter++;
+                        if (linesCounter % 1000 == 0)
+                            Console.WriteLine("count {0}", lines);
+                    }
+                }
+
+                //double trainError2 = ComputeCVError(_network, input, output);
+                //double cvError = ComputeCVError(_network, cvIn, cvOut);                
+
+                delta = Math.Abs(error - trainError);
+                error = trainError;
+                Console.WriteLine("delta error {0}", delta);
+                //trainErrors.Add(trainError2);
+                //cvErrors.Add(cvError);
+                iter++;
+                _network.Save(iter.ToString() + "-" + delta.ToString());
+                if (iter % 100 == 0)
+                    Console.WriteLine(iter);
+            }
+            Console.WriteLine(iter);
+            _network.Save("neuro.trained");
+        }
+
+        private double[] ParseOutput(string[] tokens)
+        {
+            double[] result = new double[2];            
+            result[0] = double.Parse(tokens[18]);
+            result[1] = double.Parse(tokens[19]);
+            return result;
+        }
+
+        private double[] ParseInput(string[] tokens)
+        {
+            double[] result = new double[18];
+            for (int i = 0; i < 18; i++)
+                result[i] = double.Parse(tokens[i]);
+            return result;
         }
 
         private double ComputeCVError(ActivationNetwork network, double[][] dataIn, double[][] dataOut)

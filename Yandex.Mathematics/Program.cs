@@ -18,94 +18,103 @@ namespace Yandex.Mathematics
 
         static void Main(string[] args)
         {
-            string path = Environment.CurrentDirectory + @"\..\..\..\dataset\train";
+            //string path = Environment.CurrentDirectory + @"\..\..\..\dataset\train";
 
-            Dictionary<string, User> users = new Dictionary<string, User>();
-            int totalUsers = 0;
-            int newUsers = 0;
-            while (totalUsers < 5)
-            {
-                foreach (var pair in users)
-                {
-                    pair.Value.Sessions = new List<Session>();
-                }
-                totalUsers ++;
-                newUsers = 0;
-                Dictionary<string, Session> sessions = new Dictionary<string, Session>();
+            //HashSet<string> oldUsers = new HashSet<string>();
 
-                int linesReaded = 0;
-                using (var fs = new FileStream(path, FileMode.Open))
-                using (var sr = new StreamReader(fs))
-                {
-                    string line = null;
-                    //while (linesReaded < MAX_LINES)
-                    while ((line = sr.ReadLine()) != null)
-                    {
-                        //line = sr.ReadLine();
-                        string[] tokens = line.Split('\t');
+            //int totalUsers = 0;
+            //int newUsers = 0;
+            
+            //Dictionary<string, User> users = new Dictionary<string, User>();
+            //while (totalUsers < 20)
+            //{
+            //    Dictionary<string, Session> sessions = new Dictionary<string, Session>();
 
-                        if (tokens[2].Equals("M"))
-                        {
-                            User user;
-                            if (users.ContainsKey(tokens[3])) // userid
-                                user = users[tokens[3]];
-                            else
-                            {
-                                if (newUsers < MAX_USERS)
-                                {
-                                    user = new User() { UserID = UInt64.Parse(tokens[3]) };
-                                    users.Add(tokens[3], user);
-                                    newUsers++;
-                                }
-                                else
-                                    continue;
-                            }
+            //    var keys = users.Keys.ToList();
+            //    foreach (var key in keys)
+            //    {
+            //        oldUsers.Add(key);
+            //    }
+            //    users = new Dictionary<string, User>();
 
-                            var session = Session.Create(user, tokens);
-                            user.Sessions.Add(session);
+            //    totalUsers ++;
+            //    newUsers = 0;                
 
-                            if (!sessions.ContainsKey(tokens[0]))
-                                sessions.Add(tokens[0], session);
-                            //else
-                            //    Debug.Fail("unexpected");
-                        }
-                        if (tokens[2].Equals("Q"))
-                        {
-                            if (sessions.ContainsKey(tokens[0]))
-                            {
-                                var query = Query.Create(tokens);
-                                sessions[tokens[0]].AddQuery(query);
-                            }
-                            //else
-                            //    Debug.Fail("unexpected");
-                        }
-                        if (tokens[2].Equals("C"))
-                        {
-                            if (sessions.ContainsKey(tokens[0]))
-                            {
-                                var click = Click.Create(tokens);
-                                sessions[tokens[0]].AddClick(click);
-                            }
-                            //else
-                            //    Debug.Fail("unexpected");
-                        }
-                        if (tokens[2].Equals("S"))
-                        {
-                            if (sessions.ContainsKey(tokens[0]))
-                                sessions[tokens[0]].AddSwitch(Switch.Create(tokens));
-                            //else
-                            //    Debug.Fail("unexpected");
-                        }
-                        linesReaded++;
-                        if (linesReaded % 1000 == 0)
-                            Console.WriteLine(linesReaded);
-                    }
-                }
+            //    int linesReaded = 0;
+            //    using (var fs = new FileStream(path, FileMode.Open))
+            //    using (var sr = new StreamReader(fs))
+            //    {
+            //        string line = null;
+            //        //while (linesReaded < MAX_LINES)
+            //        while ((line = sr.ReadLine()) != null)
+            //        {
+            //            //line = sr.ReadLine();
+            //            string[] tokens = line.Split('\t');
 
-                var sess = sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);            
+            //            if (tokens[2].Equals("M"))
+            //            {
+            //                User user;
+            //                if (users.ContainsKey(tokens[3])) // userid                            
+            //                    user = users[tokens[3]];
+            //                else
+            //                {
+            //                    if (oldUsers.Contains(tokens[3]))
+            //                        continue;
+            //                    if (newUsers < MAX_USERS)
+            //                    {
+            //                        user = new User() { UserID = UInt64.Parse(tokens[3]) };
+            //                        users.Add(tokens[3], user);
+            //                        newUsers++;
+            //                    }
+            //                    else
+            //                        continue;
+            //                }
 
-                WriteData(sess);
-            }
+            //                var session = Session.Create(user, tokens);
+            //                user.Sessions.Add(session);
+
+            //                if (!sessions.ContainsKey(tokens[0]))
+            //                    sessions.Add(tokens[0], session);
+            //                //else
+            //                //    Debug.Fail("unexpected");
+            //            }
+            //            if (tokens[2].Equals("Q"))
+            //            {
+            //                if (sessions.ContainsKey(tokens[0]))
+            //                {
+            //                    var query = Query.Create(tokens);
+            //                    sessions[tokens[0]].AddQuery(query);
+            //                }
+            //                //else
+            //                //    Debug.Fail("unexpected");
+            //            }
+            //            if (tokens[2].Equals("C"))
+            //            {
+            //                if (sessions.ContainsKey(tokens[0]))
+            //                {
+            //                    var click = Click.Create(tokens);
+            //                    sessions[tokens[0]].AddClick(click);
+            //                }
+            //                //else
+            //                //    Debug.Fail("unexpected");
+            //            }
+            //            if (tokens[2].Equals("S"))
+            //            {
+            //                if (sessions.ContainsKey(tokens[0]))
+            //                    sessions[tokens[0]].AddSwitch(Switch.Create(tokens));
+            //                //else
+            //                //    Debug.Fail("unexpected");
+            //            }
+            //            linesReaded++;
+            //            if (linesReaded % 1000 == 0)
+            //                Console.WriteLine(linesReaded);
+            //        }
+            //    }
+
+            //    var sess = sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);            
+
+            //    WriteData(sess);
+            //}
 
             List<double> trainErrors;
             List<double> cvErrors;
@@ -117,25 +126,25 @@ namespace Yandex.Mathematics
             //Visualize(trainErrors, cvErrors);
 
 
-
             //var trainSize = (int)(0.7 * sess.Count);
             //var cvSize = sess.Count - trainSize;
             //var train = sess.GetRange(0, trainSize);
             //train = train.FindAll(p => p.User.Sessions.Count > 5);
             //var cv = sess.GetRange(trainSize, cvSize);
 
-            //Console.WriteLine("Start neuro");
-            //NeuroNet nn = new NeuroNet();
-            //List<double> tErr, cvErr;
-            //nn.Train(train, cv, out tErr, out cvErr);
+            Console.WriteLine("Start neuro");
+            NeuroNet nn = new NeuroNet();
+            List<double> tErr, cvErr;
+            string path = Environment.CurrentDirectory + @"\..\..\..\dataset\data";
+            nn.Train(path, out tErr, out cvErr);
 
-            ////Visualize(tErr, cvErr);
+            //Visualize(tErr, cvErr);
 
-            //Console.WriteLine();
-            //Console.WriteLine("Train data metrics");
-            ////EstimateMetrics(train, nn);
-            //Console.WriteLine();
-            //Console.WriteLine("CV data metrics");
+            Console.WriteLine();
+            Console.WriteLine("Train data metrics");
+            //EstimateMetrics(train, nn);
+            Console.WriteLine();
+            Console.WriteLine("CV data metrics");
             //EstimateMetrics(cv, nn);
 
             Console.ReadKey();
