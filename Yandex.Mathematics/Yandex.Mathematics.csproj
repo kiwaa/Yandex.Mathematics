@@ -56,6 +56,7 @@
   <ItemGroup>
     <Compile Include="Click.cs" />
     <Compile Include="EnumerableExtensions.cs" />
+    <Compile Include="UserStruct.cs" />
     <Compile Include="IUserAction.cs" />
     <Compile Include="NeuroNet.cs" />
     <Compile Include="Program.cs" />

@@ -111,11 +111,8 @@ namespace Yandex.Mathematics
             Console.WriteLine(iter);
         }
 
-        public void Train(string path, out List<double> trainErrors, out List<double> cvErrors)
-        {
-            trainErrors = new List<double>();
-            cvErrors = new List<double>();
-            
+        public void Train(string path)
+        {            
             Console.WriteLine("feature scaling");
             mean = new double[18];
             dev = new double[18];
@@ -205,7 +202,7 @@ namespace Yandex.Mathematics
 
                         linesCounter++;
                         if (linesCounter % 1000 == 0)
-                            Console.WriteLine("count {0}", lines);
+                            Console.WriteLine("count {0}", linesCounter);
                     }
                 }
 

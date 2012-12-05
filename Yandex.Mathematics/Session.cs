@@ -27,24 +27,27 @@ namespace Yandex.Mathematics
             session.SessionID = UInt64.Parse(tokens[0]);
             session.Day = Byte.Parse(tokens[1]);
             session.User = user;
-            switch (tokens[4])
-            {
-                case "B":
-                    session.Switch = SwitchType.Bar;
-                    break;
-                case "P":
-                    session.Switch = SwitchType.Search;
-                    break;
-                case "H":
-                    session.Switch = SwitchType.Hybrid;
-                    break;
-                case "N":
-                    session.Switch = SwitchType.No;
-                    break;
-                default:
-                    Debug.Fail("unexpected switch type: " + tokens[4]);
-                    break;
-            }
+            if (tokens.Length == 5)
+                switch (tokens[4])
+                {
+                    case "B":
+                        session.Switch = SwitchType.Bar;
+                        break;
+                    case "P":
+                        session.Switch = SwitchType.Search;
+                        break;
+                    case "H":
+                        session.Switch = SwitchType.Hybrid;
+                        break;
+                    case "N":
+                        session.Switch = SwitchType.No;
+                        break;
+                    default:
+                        Debug.Fail("unexpected switch type: " + tokens[4]);
+                        break;
+                }
+            else
+                session.Switch = SwitchType.No;
             session.Actions = new List<IUserAction>();
             return session;
         }
