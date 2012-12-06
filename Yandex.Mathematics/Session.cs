@@ -58,7 +58,7 @@ namespace Yandex.Mathematics
 
         public UInt64 SessionID { get; private set; }
         public Byte Day { get; private set; }
-        public User User { get; private set; }
+        public User User { get; set; }
         public SwitchType Switch { get; private set; }
         public List<IUserAction> Actions { get; private set; }
 

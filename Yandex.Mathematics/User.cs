@@ -19,6 +19,8 @@ namespace Yandex.Mathematics
         {
             get
             {
+                if (Sessions.Count == 0)
+                    return 0;
                 double @switch = Sessions.Count(p => p.Switch != Session.SwitchType.No);
                 return (@switch / Sessions.Count);
             }
@@ -28,6 +30,8 @@ namespace Yandex.Mathematics
         {
             get
             {
+                if (Sessions.Count == 0)
+                    return 0;
                 return Sessions.Average(p => p.FirstSwitchTime);
             }
         }
@@ -36,6 +40,8 @@ namespace Yandex.Mathematics
         {
             get
             {
+                if (Sessions.Count == 0)
+                    return 0;
                 return Sessions.Average(p => p.TotalClicksBeforeFirstSwitch);
             }
         }
@@ -44,6 +50,8 @@ namespace Yandex.Mathematics
         {
             get
             {
+                if (Sessions.Count == 0)
+                    return 0;
                 return Sessions.Average(p => p.TotalQueriesBeforeFirstSwitch);
             }
         }

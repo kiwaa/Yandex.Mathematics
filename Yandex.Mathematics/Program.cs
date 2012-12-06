@@ -32,17 +32,38 @@ namespace Yandex.Mathematics
             string train = Environment.CurrentDirectory + @"\..\..\..\dataset\train";
             string test = Environment.CurrentDirectory + @"\..\..\..\dataset\test";
             string preparedData = Environment.CurrentDirectory + @"\..\..\..\dataset\data";
+            string preparedCV = Environment.CurrentDirectory + @"\..\..\..\dataset\cv";
             string preparedUsers = Environment.CurrentDirectory + @"\..\..\..\dataset\users";
+            string preparedCVUsers = Environment.CurrentDirectory + @"\..\..\..\dataset\cvusers";
             string trained = Environment.CurrentDirectory + @"\..\..\..\dataset\neuro.trained";
             string answer = Environment.CurrentDirectory + @"\..\..\..\dataset\answer";
 
-            //PrepareDataHDD(train, preparedData, preparedUsers);
+            Dictionary<string, User> users;
+            List<Session> trainList = PrepareDataInMemory(train, 0, 500000, false);
+            List<Session> cvList = PrepareDataInMemory(train, 500000, 200000, true);
 
-            NeuroNet nn = new NeuroNet();
-            nn.Train(preparedData);
+            foreach (Session s in cvList)
+            {
+                var sessionWithSameUser = trainList.Find(p => p.User.UserID == s.User.UserID);
+                if (sessionWithSameUser != null)
+                    s.User = sessionWithSameUser.User;
+                else
+                    s.User = new User();
+            }
+
+            //PrepareDataHDD(train, 0, 500000, preparedData, preparedUsers, false);
+            //PrepareDataHDD(train, 500000, 200000, preparedCV, preparedCVUsers, true);
 
             //Dictionary<string, UserStruct> trainUsersStruct = GetUsersStructHDD(preparedUsers);
             //Dictionary<string, Session> testSessions = PrepareTestData(test);
+
+            List<double> trainErrors, cvErrors;
+
+            NeuroNet nn = new NeuroNet();
+            trainList = trainList.FindAll(p => p.User.Sessions.Count > 5);
+            nn.Train(trainList, cvList, out trainErrors, out cvErrors);
+            //nn.Train(preparedData, preparedCV, trainUsersStruct, out trainErrors, out cvErrors);
+            Visualize(trainErrors, cvErrors);
 
             //var answerList = new List<AnswerStruct>();
             //Network network = ActivationNetwork.Load(trained);
@@ -61,6 +82,7 @@ namespace Yandex.Mathematics
             //        sw.WriteLine(answerList[m].SID);
             //    }
             //}
+            Console.ReadKey();
         }
 
         private static double[] CreateTestInput(Session session, UserStruct userStruct)
@@ -116,15 +138,15 @@ namespace Yandex.Mathematics
             return result;
         }        
 
-        private static void PrepareDataHDD(string dataPath, string preparedDataPath, string preparedUsersPath)
+        private static void PrepareDataHDD(string dataPath, int linesOffset, int linesToRead, string preparedDataPath, string preparedUsersPath, bool skipSwitch)
         {
             HashSet<string> oldUsers = new HashSet<string>();
 
             int totalUsers = 0;
-            int newUsers = 1;
+            int newUsers = MAX_USERS;
 
             Dictionary<string, User> users = new Dictionary<string, User>();
-            while (totalUsers < 11)
+            while (newUsers == MAX_USERS)
             {
                 Dictionary<string, Session> sessions = new Dictionary<string, Session>();
 
@@ -144,11 +166,17 @@ namespace Yandex.Mathematics
                 {
                     string line = null;
                     //while (linesReaded < MAX_LINES)
-                    while ((line = sr.ReadLine()) != null)
+                    while ((line = sr.ReadLine()) != null && linesReaded < linesOffset + linesToRead)
                     {
+                        linesReaded++;
+                        if (linesReaded % 1000 == 0)
+                            Console.WriteLine(linesReaded);
+                        if (linesReaded < linesOffset)
+                        {
+                            continue;
+                        }
                         //line = sr.ReadLine();
                         string[] tokens = line.Split('\t');
-
                         if (tokens[2].Equals("M"))
                         {
                             User user;
@@ -196,23 +224,95 @@ namespace Yandex.Mathematics
                             //else
                             //    Debug.Fail("unexpected");
                         }
-                        if (tokens[2].Equals("S"))
+                        if (!skipSwitch && tokens[2].Equals("S"))
                         {
                             if (sessions.ContainsKey(tokens[0]))
                                 sessions[tokens[0]].AddSwitch(Switch.Create(tokens));
                             //else
                             //    Debug.Fail("unexpected");
                         }
-                        linesReaded++;
-                        if (linesReaded % 1000 == 0)
-                            Console.WriteLine(linesReaded);
                     }
                 }
 
-                var sess = sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);            
+                var sess = sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);
 
                 WriteData(preparedDataPath, preparedUsersPath, sess);
             }
+        }
+
+        private static List<Session> PrepareDataInMemory(string dataPath, int linesOffset, int linesToRead, bool skipSwitch)
+        {
+            Dictionary<string, User> users = new Dictionary<string, User>();
+            Dictionary<string, Session> sessions = new Dictionary<string, Session>();
+
+            int linesReaded = 0;
+            using (var fs = new FileStream(dataPath, FileMode.Open))
+            using (var sr = new StreamReader(fs))
+            {
+                string line = null;
+                while (linesReaded < linesOffset + linesToRead)
+                //while ((line = sr.ReadLine()) != null && linesReaded < linesOffset + linesToRead)
+                {
+                    line = sr.ReadLine(); 
+                    linesReaded++;
+                    if (linesReaded % 1000 == 0)
+                        Console.WriteLine(linesReaded);                    
+                    if (linesReaded < linesOffset)
+                    {
+                        continue;
+                    }
+                    
+                    string[] tokens = line.Split('\t');
+                    if (tokens[2].Equals("M"))
+                    {
+                        User user;
+                        if (users.ContainsKey(tokens[3])) // userid                            
+                            user = users[tokens[3]];
+                        else
+                        {
+                            user = new User() { UserID = UInt64.Parse(tokens[3]) };
+                            users.Add(tokens[3], user);
+                        }
+
+                        var session = Session.Create(user, tokens);
+                        user.Sessions.Add(session);
+
+                        if (!sessions.ContainsKey(tokens[0]))
+                            sessions.Add(tokens[0], session);
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                    if (tokens[2].Equals("Q"))
+                    {
+                        if (sessions.ContainsKey(tokens[0]))
+                        {
+                            var query = Query.Create(tokens);
+                            sessions[tokens[0]].AddQuery(query);
+                        }
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                    if (tokens[2].Equals("C"))
+                    {
+                        if (sessions.ContainsKey(tokens[0]))
+                        {
+                            var click = Click.Create(tokens);
+                            sessions[tokens[0]].AddClick(click);
+                        }
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                    if (!skipSwitch && tokens[2].Equals("S"))
+                    {
+                        if (sessions.ContainsKey(tokens[0]))
+                            sessions[tokens[0]].AddSwitch(Switch.Create(tokens));
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                }
+            }
+
+            return sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);
         }
 
         private static Dictionary<string, Session> PrepareTestData(string dataPath)
@@ -404,6 +504,8 @@ namespace Yandex.Mathematics
                     string s = "";
                     for (int j = 0; j < 20; j++)
                         s += data[m][j] + " ";
+                    s += sessions[m].User.UserID + " ";
+                    s += sessions[m].User.Sessions.Count;
                     sw.WriteLine(s.Trim());
                 }
             }
