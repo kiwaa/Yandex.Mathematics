@@ -38,29 +38,29 @@ namespace Yandex.Mathematics
 
             //PrepareDataHDD(train, preparedData, preparedUsers);
 
-            NeuroNet nn = new NeuroNet();
-            nn.Train(preparedData);
+            //NeuroNet nn = new NeuroNet();
+            //nn.Train(preparedData);
 
-            //Dictionary<string, UserStruct> trainUsersStruct = GetUsersStructHDD(preparedUsers);
-            //Dictionary<string, Session> testSessions = PrepareTestData(test);
+            Dictionary<string, UserStruct> trainUsersStruct = GetUsersStructHDD(preparedUsers);
+            Dictionary<string, Session> testSessions = PrepareTestData(test);
 
-            //var answerList = new List<AnswerStruct>();
-            //Network network = ActivationNetwork.Load(trained);
-            //foreach (var pair in testSessions)
-            //{
-            //    double[] input = CreateTestInput(pair.Value, trainUsersStruct[pair.Value.User.UserID.ToString()]);
-            //    double[] output = network.Compute(input);
-            //    answerList.Add(new AnswerStruct(pair.Value.SessionID.ToString(), output[1] / (output[1] + output[0])));
-            //}
-            //answerList.Sort((x, y) => -x.Probability.CompareTo(y.Probability));
-            
-            //using (StreamWriter sw = new StreamWriter(answer))
-            //{
-            //    for (int m = 0; m < answerList.Count; m++)
-            //    {
-            //        sw.WriteLine(answerList[m].SID);
-            //    }
-            //}
+            var answerList = new List<AnswerStruct>();
+            Network network = ActivationNetwork.Load(trained);
+            foreach (var pair in testSessions)
+            {
+                double[] input = CreateTestInput(pair.Value, trainUsersStruct[pair.Value.User.UserID.ToString()]);
+                double[] output = network.Compute(input);
+                answerList.Add(new AnswerStruct(pair.Value.SessionID.ToString(), output[1]));
+            }
+            answerList.Sort((x, y) => -x.Probability.CompareTo(y.Probability));
+
+            using (StreamWriter sw = new StreamWriter(answer))
+            {
+                for (int m = 0; m < answerList.Count; m++)
+                {
+                    sw.WriteLine(answerList[m].SID);
+                }
+            }
         }
 
         private static double[] CreateTestInput(Session session, UserStruct userStruct)
@@ -209,9 +209,10 @@ namespace Yandex.Mathematics
                     }
                 }
 
-                var sess = sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);            
+                var sess = sessions.Values.ToList(); //.FindAll(p => p.Switch != Session.SwitchType.No);            
+                var userss = users.Values.ToList();
 
-                WriteData(preparedDataPath, preparedUsersPath, sess);
+                WriteData(preparedDataPath, preparedUsersPath, sess, userss);
             }
         }
 
@@ -383,7 +384,7 @@ namespace Yandex.Mathematics
             thread.Start();
         }
 
-        private static void WriteData(string dataPath, string usersPath, List<Session> sessions)
+        private static void WriteData(string dataPath, string usersPath, List<Session> sessions, List<User> users)
         {
             double[][] data = new double[sessions.Count][];
             for (int i = 0; i < sessions.Count; i++)
@@ -410,13 +411,15 @@ namespace Yandex.Mathematics
 
             using (StreamWriter sw = new StreamWriter(usersPath, true))
             {
-                for (int m = 0; m < sessions.Count; m++)
+                for (int m = 0; m < users.Count; m++)
                 {
                     string s = "";
-                    s += sessions[m].User.UserID + " ";
-                    for (int j = 10; j < 14; j++)
-                        s += data[m][j] + " ";
-                    sw.WriteLine(s.Trim());
+                    s += users[m].UserID + " ";
+                    s += users[m].SwitchFreq + " ";
+                    s += users[m].AvgTimeBeforeFirstSwitch + " ";
+                    s += users[m].AvgQueriesBeforeFirstSwitch + " ";
+                    s += users[m].AvgClicksBeforeFirstSwitch;
+                    sw.WriteLine(s);
                 }
             }
         }
