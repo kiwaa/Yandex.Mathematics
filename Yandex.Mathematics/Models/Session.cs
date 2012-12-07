@@ -72,6 +72,7 @@ namespace Yandex.Mathematics
 
         #endregion //Constructor
 
+
         public long FirstSwitchTime
         {
             get

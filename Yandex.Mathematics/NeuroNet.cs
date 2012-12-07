@@ -111,7 +111,7 @@ namespace Yandex.Mathematics
             Console.WriteLine(iter);
         }
 
-        public void Train(string dataPath, string cvPath, Dictionary<string, UserStruct> users, out List<double> trainErrors, out List<double> cvErrors)
+        public void Train(string dataPath, string cvPath, Dictionary<string, User> users, out List<double> trainErrors, out List<double> cvErrors)
         {
             trainErrors = new List<double>();
             cvErrors = new List<double>();
@@ -235,7 +235,7 @@ namespace Yandex.Mathematics
             _network.Save("neuro.trained");
         }
 
-        private double ComputeCVError(Network network, Dictionary<string, UserStruct> users, string path, bool skipUsers)
+        private double ComputeCVError(Network network, Dictionary<string, User> users, string path, bool skipUsers)
         {
             double error = 0;
             long linesCounter = 0;
@@ -307,7 +307,7 @@ namespace Yandex.Mathematics
             return error / 2 / dataIn.Length;
         }
 
-        private double[] Run(Session session)
+        public double[] Run(Session session)
         {
             double[] input = CreateInput(session);
             input = ScaleInput(input);
@@ -335,10 +335,13 @@ namespace Yandex.Mathematics
             input[7] = session.TotalQueries;
             input[8] = session.FirstClickPageDuration;
             input[9] = session.FirstClickResultIndex;
+            
+            session.User.Estimate();
             input[10] = session.User.SwitchFreq;
             input[11] = session.User.AvgTimeBeforeFirstSwitch;
             input[12] = session.User.AvgQueriesBeforeFirstSwitch;
             input[13] = session.User.AvgClicksBeforeFirstSwitch;
+
             input[14] = session.AvgTimeBetweenClicksInSERP;
             input[15] = session.AvgClicksPerQuery;
             input[16] = session.AvgFirstClickResultIndexPerQuery;

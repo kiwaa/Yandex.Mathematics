@@ -13,13 +13,6 @@ namespace Yandex.Mathematics
 {
     internal sealed class Program
     {
-        private const int MAX_LINES = 200000;
-        private const int MAX_USERS = 100000;
-
-        static double[] mean;
-        static double[] dev;
-
-
         public struct AnswerStruct
         {
             public string SID;
@@ -42,115 +35,215 @@ namespace Yandex.Mathematics
             string trained = Environment.CurrentDirectory + @"\..\..\..\dataset\neuro.trained";
             string answer = Environment.CurrentDirectory + @"\..\..\..\dataset\answer";
 
-            //Dictionary<string, User> users;
-            //List<Session> trainList = PrepareDataInMemory(train, 0, 500000, false);
-            //List<Session> cvList = PrepareDataInMemory(train, 500000, 200000, true);
+            Dictionary<string, User> users, cvUsers;
+            List<Session> trainList = PrepareDataInMemory(train, 0, 200000, false, out users);
+            List<Session> cvList = PrepareDataInMemory(train, 200000, 100000, true, out cvUsers);
 
-            //foreach (Session s in cvList)
-            //{
-            //    var sessionWithSameUser = trainList.Find(p => p.User.UserID == s.User.UserID);
-            //    if (sessionWithSameUser != null)
-            //        s.User = sessionWithSameUser.User;
-            //    else
-            //        s.User = new User();
-            //}
+            User avgUser = CreateAverateUser(users.Values.ToList<User>());
+
+            foreach (Session s in cvList)
+            {
+                string key = s.User.UserID.ToString();
+                if (users.ContainsKey(key))
+                    s.User = users[key];
+                else
+                    s.User = avgUser;
+            }
+
+            List<double> trainErrors, cvErrors;
+            NeuroNet nn = new NeuroNet();
+            trainList = trainList.FindAll(p => p.User.Sessions.Count > 5);
+            nn.Train(trainList, cvList, out trainErrors, out cvErrors);
+            
+            EstimateMetrics(cvList, nn);
+            EstimateAUC(cvList, nn);
+            //Visualize(trainErrors, cvErrors);
+
 
             //PrepareDataHDD(train, 0, 999999999, preparedData, preparedUsers, false);
             //PrepareDataHDD(train, 500000, 20000, preparedCV, preparedCVUsers, true);
 
-            Dictionary<string, UserStruct> trainUsersStruct = GetUsersStructHDD(preparedUsers);
-            Dictionary<string, Session> testSessions = PrepareTestData(test);            
+            //Dictionary<string, UserStruct> trainUsersStruct = GetUsersStructHDD(preparedUsers);
+            //Dictionary<string, Session> testSessions = PrepareTestData(test);            
 
             //List<double> trainErrors, cvErrors;
-
             //NeuroNet nn = new NeuroNet();
             //nn.Load(preparedData, trained);
             ////trainList = trainList.FindAll(p => p.User.Sessions.Count > 5);
             //nn.Train(trainList, cvList, out trainErrors, out cvErrors);
+
+
+            
             //nn.Train(preparedData, preparedCV, trainUsersStruct, out trainErrors, out cvErrors);
             //Visualize(trainErrors, cvErrors);
 
-            var answerList = new List<AnswerStruct>();
-            Network network = ActivationNetwork.Load(trained);
+            //var answerList = new List<AnswerStruct>();
+            //Network network = ActivationNetwork.Load(trained);
 
             //EstimateMetrics(cvList, nn);
+            //EstimateAUC(cvList, nn);
+                        
+            //foreach (var pair in testSessions)
+            //{
+            //    UserStruct user;
+            //    if (trainUsersStruct.ContainsKey(pair.Value.User.UserID.ToString()))
+            //        user = trainUsersStruct[pair.Value.User.UserID.ToString()];
+            //    else
+            //        user = new UserStruct();
+            //    double[] input = CreateTestInput(pair.Value, user);
+            //    double[] output = network.Compute(input);
+            //    answerList.Add(new AnswerStruct(pair.Value.SessionID.ToString(), output[1] / (output[1] + output[0])));
+            //}
+            //answerList.Sort((x, y) => -x.Probability.CompareTo(y.Probability));
 
-            mean = new double[18];
-            dev = new double[18];
-
-            int lines = 0;
-            var sum = new double[18];
-            using (var sr = new StreamReader(preparedData))
-            {
-                string line;
-                while ((line = sr.ReadLine()) != null)
-                {
-                    var tokens = line.Split(' ');
-                    //int userSessionsCount = int.Parse(tokens[21]);
-                    //if (userSessionsCount < 5)
-                    //    continue;
-                    double[] input = ParseInput(tokens);
-                    for (int i = 0; i < 18; i++)
-                        sum[i] += input[i];
-                    lines++;
-
-                    if (lines % 1000 == 0)
-                        Console.WriteLine("mean: " + lines);
-                }
-            }
-
-            for (int i = 0; i < 18; i++)
-            {
-                mean[i] = sum[i] / lines;
-                sum[i] = 0;
-            }
-
-            using (var sr = new StreamReader(preparedData))
-            {
-                string line;
-                while ((line = sr.ReadLine()) != null)
-                {
-                    var tokens = line.Split(' ');
-                    //int userSessionsCount = int.Parse(tokens[21]);
-                    //if (userSessionsCount < 5)
-                    //    continue;
-                    double[] input = ParseInput(tokens);
-                    for (int i = 0; i < 18; i++)
-                        sum[i] += (input[i] - mean[i]) * (input[i] - mean[i]);
-                    lines++;
-
-                    if (lines % 1000 == 0)
-                        Console.WriteLine("dev: " + lines);
-                }
-            }
-
-            for (int i = 0; i < 18; i++)
-            {
-                dev[i] = sum[i] / lines;
-                sum[i] = 0;
-            }
-
-            foreach (var pair in testSessions)
-            {
-                UserStruct user;
-                if (trainUsersStruct.ContainsKey(pair.Value.User.UserID.ToString()))
-                    user = trainUsersStruct[pair.Value.User.UserID.ToString()];
-                else
-                    user = new UserStruct();
-                double[] input = CreateTestInput(pair.Value, user);
-                double[] output = network.Compute(input);
-                answerList.Add(new AnswerStruct(pair.Value.SessionID.ToString(), output[1] / (output[1] + output[0])));
-            }
-            answerList.Sort((x, y) => -x.Probability.CompareTo(y.Probability));
-
-            using (StreamWriter sw = new StreamWriter(answer))
-            {
-                for (int m = 0; m < answerList.Count; m++)
-                {
-                    sw.WriteLine(answerList[m].SID);
-                }
-            }
+            //using (StreamWriter sw = new StreamWriter(answer))
+            //{
+            //    for (int m = 0; m < answerList.Count; m++)
+            //    {
+            //        sw.WriteLine(answerList[m].SID);
+            //    }
+            //}
             Console.ReadKey();
+        }
+
+        private static User CreateAverateUser(IEnumerable<User> list)
+        {
+            User user = new User();
+            user.SwitchFreq = list.Average(p => p.SwitchFreq);
+            user.AvgTimeBeforeFirstSwitch = list.Average(p => p.AvgTimeBeforeFirstSwitch);
+            user.AvgQueriesBeforeFirstSwitch = list.Average(p => p.AvgQueriesBeforeFirstSwitch);
+            user.AvgClicksBeforeFirstSwitch = list.Average(p => p.AvgClicksBeforeFirstSwitch);
+            return user;
+        }
+
+        private static List<Session> PrepareDataInMemory(string dataPath, int linesOffset, int linesToRead, bool skipSwitch, out Dictionary<string, User> users)
+        {
+            users = new Dictionary<string, User>();
+            Dictionary<string, Session> sessions = new Dictionary<string, Session>();
+
+            int linesReaded = 0;
+            using (var fs = new FileStream(dataPath, FileMode.Open))
+            using (var sr = new StreamReader(fs))
+            {
+                string line = null;
+                //while (linesReaded < linesOffset + linesToRead)
+                while ((line = sr.ReadLine()) != null && linesReaded < linesOffset + linesToRead)
+                {
+                    //line = sr.ReadLine(); 
+                    linesReaded++;
+                    if (linesReaded % 1000 == 0)
+                        Console.WriteLine(linesReaded);
+                    if (linesReaded < linesOffset)
+                        continue;
+
+                    string[] tokens = line.Split('\t');
+                    if (tokens[2].Equals("M"))
+                    {
+                        User user;
+                        if (users.ContainsKey(tokens[3])) // userid                            
+                            user = users[tokens[3]];
+                        else
+                        {
+                            user = new User() { UserID = UInt64.Parse(tokens[3]) };
+                            users.Add(tokens[3], user);
+                        }
+
+                        var session = Session.Create(user, tokens);
+                        user.Sessions.Add(session);
+
+                        if (!sessions.ContainsKey(tokens[0]))
+                            sessions.Add(tokens[0], session);
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                    if (tokens[2].Equals("Q"))
+                    {
+                        if (sessions.ContainsKey(tokens[0]))
+                        {
+                            var query = Query.Create(tokens);
+                            sessions[tokens[0]].AddQuery(query);
+                        }
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                    if (tokens[2].Equals("C"))
+                    {
+                        if (sessions.ContainsKey(tokens[0]))
+                        {
+                            var click = Click.Create(tokens);
+                            sessions[tokens[0]].AddClick(click);
+                        }
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                    if (!skipSwitch && tokens[2].Equals("S"))
+                    {
+                        if (sessions.ContainsKey(tokens[0]))
+                            sessions[tokens[0]].AddSwitch(Switch.Create(tokens));
+                        //else
+                        //    Debug.Fail("unexpected");
+                    }
+                }
+            }
+            return sessions.Values.ToList<Session>();
+        }
+
+        private static void EstimateMetrics(List<Session> data, NeuroNet nn)
+        {
+            int truePositive = 0;
+            int trueNegative = 0;
+            int falsePositive = 0;
+            int falseNegative = 0;
+            foreach (Session s in data)
+            {
+                bool detected = nn.DetectSwitch(s);
+                if (s.Switch == Session.SwitchType.No)
+                {
+                    if (detected)
+                        falsePositive++;
+                    else
+                        trueNegative++;
+                }
+                if (s.Switch != Session.SwitchType.No)
+                {
+                    if (detected)
+                        truePositive++;
+                    else
+                        falseNegative++;
+                }
+            }
+            double precision = ((double)truePositive) / (truePositive + falsePositive);
+            double recall = ((double)truePositive) / (truePositive + falseNegative);
+            double f1 = 2 * precision * recall / (precision + recall);
+            double missclassificationError = ((double)(falseNegative + falsePositive)) / data.Count;
+
+            Console.WriteLine("Precision: {0}", precision);
+            Console.WriteLine("Recall: {0}", recall);
+            Console.WriteLine("F1: {0}", f1);
+            Console.WriteLine("Missclassification: {0}", missclassificationError);
+        }
+
+
+        private static void EstimateAUC(List<Session> data, NeuroNet nn)
+        {
+            var answerList = new List<AnswerStruct>();
+            foreach (Session s in data)
+            {
+                double[] output = nn.Run(s);
+                answerList.Add(new AnswerStruct(s.SessionID.ToString(), output[1]));
+            }
+            //ascend sort
+            answerList.Sort((x, y) => x.Probability.CompareTo(y.Probability));
+            double positiveNum = data.Count(p => p.Switch != Session.SwitchType.No);
+            double negativeNum = data.Count(p => p.Switch == Session.SwitchType.No);
+            double rankSum = 0;
+            foreach (Session s in data)
+            {
+                if (s.Switch != Session.SwitchType.No)
+                    rankSum += answerList.FindIndex(p => p.SID.Equals(s.SessionID.ToString()));
+            }
+            double auc = (rankSum - positiveNum * (positiveNum + 1) / 2) / positiveNum / negativeNum;
+            Console.WriteLine("AUC: " + auc);
         }
 
         private static double[] ParseInput(string[] tokens)
@@ -161,7 +254,7 @@ namespace Yandex.Mathematics
             return result;
         }
 
-        private static double[] CreateTestInput(Session session, UserStruct userStruct)
+        private static double[] CreateTestInput(Session session, User user)
         {
             double[] input = new double[18];
             input[0] = session.FirstClickTime;
@@ -174,23 +267,23 @@ namespace Yandex.Mathematics
             input[7] = session.TotalQueries;
             input[8] = session.FirstClickPageDuration;
             input[9] = session.FirstClickResultIndex;
-            input[10] = userStruct.SwitchFreq;
-            input[11] = userStruct.AvgTimeBeforeFirstSwitch;
-            input[12] = userStruct.AvgQueriesBeforeFirstSwitch;
-            input[13] = userStruct.AvgClicksBeforeFirstSwitch;
+            input[10] = user.SwitchFreq;
+            input[11] = user.AvgTimeBeforeFirstSwitch;
+            input[12] = user.AvgQueriesBeforeFirstSwitch;
+            input[13] = user.AvgClicksBeforeFirstSwitch;
             input[14] = session.AvgTimeBetweenClicksInSERP;
             input[15] = session.AvgClicksPerQuery;
             input[16] = session.AvgFirstClickResultIndexPerQuery;
             input[17] = session.AvgFirstClickTimePerQuery;
-            for (int i = 0; i < 18; i++)
-                input[i] = (input[i] - mean[13]) / dev[13];
+            //for (int i = 0; i < 18; i++)
+            //    input[i] = (input[i] - mean[13]) / dev[13];
 
             return input;
         }
 
-        private static Dictionary<string, UserStruct> GetUsersStructHDD(string preparedUsers)
+        private static Dictionary<string, User> GetUsersHDD(string preparedUsers)
         {
-            var result = new Dictionary<string, UserStruct>();
+            var result = new Dictionary<string, User>();
             using (var fs = new FileStream(preparedUsers, FileMode.Open))
             using (var sr = new StreamReader(fs))
             {
@@ -204,7 +297,7 @@ namespace Yandex.Mathematics
                     if (result.ContainsKey(tokens[0]))
                         continue;
 
-                    UserStruct user = new UserStruct();
+                    User user = new User();
                     
                     user.SwitchFreq = double.Parse(tokens[1]);
                     user.AvgTimeBeforeFirstSwitch = double.Parse(tokens[2]);
@@ -221,10 +314,10 @@ namespace Yandex.Mathematics
             HashSet<string> oldUsers = new HashSet<string>();
 
             int totalUsers = 0;
-            int newUsers = MAX_USERS;
+            int newUsers = 100000;
 
             Dictionary<string, User> users = new Dictionary<string, User>();
-            while (newUsers == MAX_USERS)
+            while (newUsers == 100000)
             {
                 Dictionary<string, Session> sessions = new Dictionary<string, Session>();
 
@@ -264,7 +357,7 @@ namespace Yandex.Mathematics
                             {
                                 if (oldUsers.Contains(tokens[3]))
                                     continue;
-                                if (newUsers < MAX_USERS)
+                                if (newUsers < 100000)
                                 {
                                     user = new User() { UserID = UInt64.Parse(tokens[3]) };
                                     users.Add(tokens[3], user);
@@ -321,82 +414,7 @@ namespace Yandex.Mathematics
 
                 WriteData(preparedDataPath, preparedUsersPath, sess, userss);
             }
-        }
-
-        private static List<Session> PrepareDataInMemory(string dataPath, int linesOffset, int linesToRead, bool skipSwitch)
-        {
-            Dictionary<string, User> users = new Dictionary<string, User>();
-            Dictionary<string, Session> sessions = new Dictionary<string, Session>();
-
-            int linesReaded = 0;
-            using (var fs = new FileStream(dataPath, FileMode.Open))
-            using (var sr = new StreamReader(fs))
-            {
-                string line = null;
-                while (linesReaded < linesOffset + linesToRead)
-                //while ((line = sr.ReadLine()) != null && linesReaded < linesOffset + linesToRead)
-                {
-                    line = sr.ReadLine(); 
-                    linesReaded++;
-                    if (linesReaded % 1000 == 0)
-                        Console.WriteLine(linesReaded);                    
-                    if (linesReaded < linesOffset)
-                    {
-                        continue;
-                    }
-                    
-                    string[] tokens = line.Split('\t');
-                    if (tokens[2].Equals("M"))
-                    {
-                        User user;
-                        if (users.ContainsKey(tokens[3])) // userid                            
-                            user = users[tokens[3]];
-                        else
-                        {
-                            user = new User() { UserID = UInt64.Parse(tokens[3]) };
-                            users.Add(tokens[3], user);
-                        }
-
-                        var session = Session.Create(user, tokens);
-                        user.Sessions.Add(session);
-
-                        if (!sessions.ContainsKey(tokens[0]))
-                            sessions.Add(tokens[0], session);
-                        //else
-                        //    Debug.Fail("unexpected");
-                    }
-                    if (tokens[2].Equals("Q"))
-                    {
-                        if (sessions.ContainsKey(tokens[0]))
-                        {
-                            var query = Query.Create(tokens);
-                            sessions[tokens[0]].AddQuery(query);
-                        }
-                        //else
-                        //    Debug.Fail("unexpected");
-                    }
-                    if (tokens[2].Equals("C"))
-                    {
-                        if (sessions.ContainsKey(tokens[0]))
-                        {
-                            var click = Click.Create(tokens);
-                            sessions[tokens[0]].AddClick(click);
-                        }
-                        //else
-                        //    Debug.Fail("unexpected");
-                    }
-                    if (!skipSwitch && tokens[2].Equals("S"))
-                    {
-                        if (sessions.ContainsKey(tokens[0]))
-                            sessions[tokens[0]].AddSwitch(Switch.Create(tokens));
-                        //else
-                        //    Debug.Fail("unexpected");
-                    }
-                }
-            }
-
-            return sessions.Values.ToList<Session>(); //.FindAll(p => p.Switch != Session.SwitchType.No);
-        }
+        }    
 
         private static Dictionary<string, Session> PrepareTestData(string dataPath)
         {
@@ -485,41 +503,6 @@ namespace Yandex.Mathematics
                 cvErrors.Add(cvErr.Last());
                 Console.WriteLine("Trained alpha: {0}", alpha);
             }
-        }
-
-        private static void EstimateMetrics(List<Session> data, NeuroNet nn)
-        {
-            int truePositive = 0;
-            int trueNegative = 0;
-            int falsePositive = 0;
-            int falseNegative = 0;
-            foreach (Session s in data)
-            {
-                bool detected = nn.DetectSwitch(s);
-                if (s.Switch == Session.SwitchType.No)
-                {
-                    if (detected)
-                        falsePositive++;
-                    else
-                        trueNegative++;
-                }
-                if (s.Switch != Session.SwitchType.No)
-                {
-                    if (detected)
-                        truePositive++;
-                    else
-                        falseNegative++;
-                }
-            }
-            double precision = ((double)truePositive) / (truePositive + falsePositive);
-            double recall = ((double)truePositive) / (truePositive + falseNegative);
-            double f1 = 2 * precision * recall / (precision + recall);
-            double missclassificationError = ((double)(falseNegative + falsePositive)) / data.Count;
-
-            Console.WriteLine("Precision: {0}", precision);
-            Console.WriteLine("Recall: {0}", recall);
-            Console.WriteLine("F1: {0}", f1);
-            Console.WriteLine("Missclassification: {0}", missclassificationError);
         }
 
         private static void Train(List<Session> sess, out List<double> trainErrors, out List<double> cvErrors)
