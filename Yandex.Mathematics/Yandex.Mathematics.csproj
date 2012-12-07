@@ -68,7 +68,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DebugVisualization\DebugVisualization.csproj">
-      <Project>{FDEB3476-B372-4C0C-B51F-3FC0CE4DA00E}</Project>
+      <Project>{fdeb3476-b372-4c0c-b51f-3fc0ce4da00e}</Project>
       <Name>DebugVisualization</Name>
     </ProjectReference>
   </ItemGroup>

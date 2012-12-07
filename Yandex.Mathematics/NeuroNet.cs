@@ -10,7 +10,7 @@ namespace Yandex.Mathematics
 {
     internal class NeuroNet
     {
-        private ActivationNetwork _network;
+        private Network _network;
         private const int inputSize = 18;
         private const int classesCount = 2;
 
@@ -80,7 +80,7 @@ namespace Yandex.Mathematics
             _network.Randomize();
             // create teacher
             //PerceptronLearning teacher = new PerceptronLearning(_network);
-            BackPropagationLearning teacher = new BackPropagationLearning(_network);
+            BackPropagationLearning teacher = new BackPropagationLearning((ActivationNetwork)_network);
 
             // set learning rate
             teacher.LearningRate = 0.01;
@@ -111,20 +111,26 @@ namespace Yandex.Mathematics
             Console.WriteLine(iter);
         }
 
-        public void Train(string path)
-        {            
+        public void Train(string dataPath, string cvPath, Dictionary<string, UserStruct> users, out List<double> trainErrors, out List<double> cvErrors)
+        {
+            trainErrors = new List<double>();
+            cvErrors = new List<double>();
+
             Console.WriteLine("feature scaling");
             mean = new double[18];
             dev = new double[18];
 
             int lines = 0;
             var sum = new double[18];
-            using (var sr = new StreamReader(path))
+            using (var sr = new StreamReader(dataPath))
             {
                 string line;
                 while ((line = sr.ReadLine()) != null)
                 {
                     var tokens = line.Split(' ');
+                    //int userSessionsCount = int.Parse(tokens[21]);
+                    //if (userSessionsCount < 5)
+                    //    continue;
                     double[] input = ParseInput(tokens);
                     for (int i = 0; i < 18; i++)
                         sum[i] += input[i];
@@ -141,12 +147,15 @@ namespace Yandex.Mathematics
                 sum[i] = 0;
             }
 
-            using (var sr = new StreamReader(path))
+            using (var sr = new StreamReader(dataPath))
             {
                 string line;
                 while ((line = sr.ReadLine()) != null)
                 {
                     var tokens = line.Split(' ');
+                    //int userSessionsCount = int.Parse(tokens[21]);
+                    //if (userSessionsCount < 5)
+                    //    continue;
                     double[] input = ParseInput(tokens);
                     for (int i = 0; i < 18; i++)
                         sum[i] += (input[i] - mean[i]) * (input[i] - mean[i]);
@@ -170,7 +179,7 @@ namespace Yandex.Mathematics
             _network.Randomize();
             // create teacher
             //PerceptronLearning teacher = new PerceptronLearning(_network);
-            BackPropagationLearning teacher = new BackPropagationLearning(_network);
+            BackPropagationLearning teacher = new BackPropagationLearning((ActivationNetwork)_network);
 
             // set learning rate
             teacher.LearningRate = 0.01;
@@ -185,13 +194,16 @@ namespace Yandex.Mathematics
             //while (iter < 2000)
             {
                 double trainError = 0;
-                using (var sr = new StreamReader(path))
+                using (var sr = new StreamReader(dataPath))
                 {
                     long linesCounter = 0;
                     string line;                    
                     while ((line = sr.ReadLine()) != null)
                     {
                         var tokens = line.Split(' ');
+                        //int userSessionsCount = int.Parse(tokens[21]);
+                        //if (userSessionsCount < 5)
+                        //    continue;
                         double[] input = ParseInput(tokens);
                         for (int j = 0; j < 18; j++)
                         {
@@ -206,13 +218,13 @@ namespace Yandex.Mathematics
                     }
                 }
 
-                //double trainError2 = ComputeCVError(_network, input, output);
-                //double cvError = ComputeCVError(_network, cvIn, cvOut);                
+                double trnError = ComputeCVError(_network, users,  dataPath, true);
+                //double cvError = ComputeCVError(_network, users, cvPath, false);
 
                 delta = Math.Abs(error - trainError);
                 error = trainError;
                 Console.WriteLine("delta error {0}", delta);
-                //trainErrors.Add(trainError2);
+                trainErrors.Add(trnError);
                 //cvErrors.Add(cvError);
                 iter++;
                 _network.Save(iter.ToString() + "-" + delta.ToString());
@@ -221,6 +233,48 @@ namespace Yandex.Mathematics
             }
             Console.WriteLine(iter);
             _network.Save("neuro.trained");
+        }
+
+        private double ComputeCVError(Network network, Dictionary<string, UserStruct> users, string path, bool skipUsers)
+        {
+            double error = 0;
+            long linesCounter = 0;
+            using (var sr = new StreamReader(path))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var tokens = line.Split(' ');
+                    //int userSessionsCount = int.Parse(tokens[21]);
+                    //if (skipUsers && userSessionsCount < 5)
+                    //    continue;
+                    double[] input = ParseInput(tokens);
+                    if (users.ContainsKey(tokens[20]))
+                    {
+                        input[10] = (users[tokens[20]].SwitchFreq - mean[10]) / dev[10];
+                        input[11] = (users[tokens[20]].AvgTimeBeforeFirstSwitch - mean[11]) / dev[11];
+                        input[12] = (users[tokens[20]].AvgQueriesBeforeFirstSwitch - mean[12]) / dev[12];
+                        input[13] = (users[tokens[20]].AvgClicksBeforeFirstSwitch - mean[13]) / dev[13];
+                    }
+                    else
+                    {
+                        input[10] = 0;
+                        input[11] = 0;
+                        input[12] = 0;
+                        input[13] = 0;
+                    }
+                    for (int j = 0; j < 18; j++)
+                    {
+                        input[j] = (input[j] - mean[j]) / dev[j];
+                    }                    
+                    double[] dataOut = ParseOutput(tokens);
+                    double[] output = network.Compute(input);
+                    for (int j = 0; j < output.Length; j++)
+                        error += (output[j] - dataOut[j]) * (output[j] - dataOut[j]);
+                    linesCounter++;
+                }
+            }
+            return error / 2 / linesCounter;
         }
 
         private double[] ParseOutput(string[] tokens)
@@ -239,14 +293,16 @@ namespace Yandex.Mathematics
             return result;
         }
 
-        private double ComputeCVError(ActivationNetwork network, double[][] dataIn, double[][] dataOut)
+        private double ComputeCVError(Network network, double[][] dataIn, double[][] dataOut)
         {
             double error = 0;
             for (int i = 0; i < dataIn.Length; i++)
             {
-                double[] output = network.Compute(dataIn[i]);                
+                double[] output = network.Compute(dataIn[i]);
                 for (int j = 0; j < output.Length; j++)
+                {
                     error += (output[j] - dataOut[i][j]) * (output[j] - dataOut[i][j]);                
+                }
             }
             return error / 2 / dataIn.Length;
         }
@@ -306,6 +362,66 @@ namespace Yandex.Mathematics
             output[0] = session.Switch == Session.SwitchType.No ? 1 : 0;
             output[1] = session.Switch != Session.SwitchType.No ? 1 : 0;
             return output;
+        }
+
+        internal void Load(string dataPath, string trained)
+        {
+            _network = Network.Load(trained);
+
+            mean = new double[18];
+            dev = new double[18];
+
+            int lines = 0;
+            var sum = new double[18];
+            using (var sr = new StreamReader(dataPath))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var tokens = line.Split(' ');
+                    //int userSessionsCount = int.Parse(tokens[21]);
+                    //if (userSessionsCount < 5)
+                    //    continue;
+                    double[] input = ParseInput(tokens);
+                    for (int i = 0; i < 18; i++)
+                        sum[i] += input[i];
+                    lines++;
+
+                    if (lines % 1000 == 0)
+                        Console.WriteLine("mean: " + lines);
+                }
+            }
+
+            for (int i = 0; i < inputSize; i++)
+            {
+                mean[i] = sum[i] / lines;
+                sum[i] = 0;
+            }
+
+            using (var sr = new StreamReader(dataPath))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    var tokens = line.Split(' ');
+                    //int userSessionsCount = int.Parse(tokens[21]);
+                    //if (userSessionsCount < 5)
+                    //    continue;
+                    double[] input = ParseInput(tokens);
+                    for (int i = 0; i < 18; i++)
+                        sum[i] += (input[i] - mean[i]) * (input[i] - mean[i]);
+                    lines++;
+
+                    if (lines % 1000 == 0)
+                        Console.WriteLine("dev: " + lines);
+                }
+            }
+
+            for (int i = 0; i < inputSize; i++)
+            {
+                dev[i] = sum[i] / lines;
+                sum[i] = 0;
+            }
         }
     }
 }
